@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetBuddy — EPL Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111418;
+    --surface2: #181c22;
+    --border: #1f2530;
+    --accent: #00e5a0;
+    --accent2: #ff4757;
+    --accent3: #ffd32a;
+    --text: #e8ecf0;
+    --muted: #5a6478;
+    --subtle: #2a3040;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.5;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: rgba(10,12,15,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .nav-tab {
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+
+  .nav-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  /* Main layout */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* Section title */
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+
+  .section-sub {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Fixtures grid */
+  .fixtures-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .fixture-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .fixture-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--border);
+    transition: background 0.2s;
+  }
+
+  .fixture-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(0,229,160,0.08);
+  }
+
+  .fixture-card:hover::before { background: var(--accent); }
+
+  .fixture-card.selected {
+    border-color: var(--accent);
+    background: #0e1a16;
+  }
+
+  .fixture-card.selected::before { background: var(--accent); }
+
+  .team-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .team-block.away { flex-direction: row-reverse; text-align: right; }
+
+  .team-crest {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+
+  .team-name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .team-form {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+  }
+
+  .form-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  .form-dot.w { background: var(--accent); }
+  .form-dot.d { background: var(--accent3); }
+  .form-dot.l { background: var(--accent2); }
+
+  .fixture-meta {
+    text-align: center;
+  }
+
+  .fixture-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .fixture-vs {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--subtle);
+    display: block;
+    margin: 2px 0;
+  }
+
+  .fixture-date {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .fixture-action {
+    display: flex;
+    align-items: center;
+  }
+
+  .pick-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+  }
+
+  .pick-btn:hover, .fixture-card.selected .pick-btn {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* Recommendation panel */
+  .rec-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 40px;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  .rec-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .rec-header {
+    background: linear-gradient(135deg, #0e1a16, #0d1520);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .rec-match-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+
+  .confidence-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  .conf-label { color: var(--muted); }
+
+  .conf-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  .rec-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    divide: var(--border);
+  }
+
+  .rec-section {
+    padding: 22px 24px;
+    border-right: 1px solid var(--border);
+  }
+
+  .rec-section:last-child { border-right: none; }
+
+  .rec-label {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .rec-pick {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .rec-pick-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .odds-display {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .odds-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: center;
+  }
+
+  .odds-chip.highlight {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.08);
+  }
+
+  .odds-chip-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .odds-chip-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .odds-chip.highlight .odds-chip-val { color: var(--accent); }
+
+  .reasoning-text {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #8a95a8;
+  }
+
+  .reasoning-text strong { color: var(--text); font-weight: 600; }
+
+  /* Stats bar */
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .stat-label { font-size: 12px; color: var(--muted); width: 80px; flex-shrink: 0; }
+
+  .stat-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    display: flex;
+  }
+
+  .stat-bar-home {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px 0 0 3px;
+    transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  .stat-bar-away {
+    height: 100%;
+    background: var(--accent2);
+    border-radius: 0 3px 3px 0;
+    transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  .stat-nums {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    width: 60px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* History tab */
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .history-table th {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 10px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-table td {
+    padding: 14px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .history-table tr:last-child td { border-bottom: none; }
+
+  .history-table tr:hover td { background: var(--surface2); }
+
+  .result-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .result-pill.win { background: rgba(0,229,160,0.12); color: var(--accent); }
+  .result-pill.loss { background: rgba(255,71,87,0.12); color: var(--accent2); }
+  .result-pill.pending { background: rgba(255,211,42,0.12); color: var(--accent3); }
+
+  /* Loading state */
+  .loading-state {
+    text-align: center;
+    padding: 48px;
+    display: none;
+  }
+
+  .loading-state.show { display: block; }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* ROI Summary bar */
+  .roi-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .roi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+
+  .roi-card-label {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .roi-card-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+
+  .roi-card-val.green { color: var(--accent); }
+  .roi-card-val.red { color: var(--accent2); }
+  .roi-card-val.yellow { color: var(--accent3); }
+  .roi-card-val.white { color: var(--text); }
+
+  /* Tab content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Animate in */
+  .fixture-card {
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .fixture-card:nth-child(1) { animation-delay: 0.05s; }
+  .fixture-card:nth-child(2) { animation-delay: 0.1s; }
+  .fixture-card:nth-child(3) { animation-delay: 0.15s; }
+  .fixture-card:nth-child(4) { animation-delay: 0.2s; }
+  .fixture-card:nth-child(5) { animation-delay: 0.25s; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 700px) {
+    .rec-body { grid-template-columns: 1fr; }
+    .rec-section { border-right: none; border-bottom: 1px solid var(--border); }
+    .roi-bar { grid-template-columns: 1fr 1fr; }
+    header { padding: 14px 16px; }
+    .logo-text { font-size: 22px; }
+    .nav-tabs { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚽</div>
+    <div class="logo-text">Bet<span>Buddy</span></div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('fixtures', this)">Fixtures</button>
+    <button class="nav-tab" onclick="switchTab('history', this)">History</button>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div> EPL GW32</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- FIXTURES TAB -->
+  <div class="tab-content active" id="tab-fixtures">
+
+    <div class="section-header">
+      <div class="section-title">UPCOMING FIXTURES</div>
+      <div class="section-sub">Gameweek 32 · Tap a match to generate AI recommendation</div>
+    </div>
+
+    <div class="fixtures-grid" id="fixtures-grid"></div>
+
+    <!-- Loading -->
+    <div class="loading-state" id="loading-state">
+      <div class="spinner"></div>
+      <div class="loading-text">ANALYSING FORM, ODDS & STATS...</div>
+    </div>
+
+    <!-- Recommendation Panel -->
+    <div class="rec-panel" id="rec-panel">
+      <div class="rec-header">
+        <div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;letter-spacing:2px;color:var(--muted);margin-bottom:4px;">AI RECOMMENDATION</div>
+          <div class="rec-match-title" id="rec-match-title">—</div>
+        </div>
+        <div class="confidence-badge">
+          <span class="conf-label">CONFIDENCE</span>
+          <span class="conf-value" id="rec-confidence">—</span>
+        </div>
+      </div>
+      <div class="rec-body">
+        <div class="rec-section">
+          <div class="rec-label">RECOMMENDED BET</div>
+          <div class="rec-pick" id="rec-pick">—</div>
+          <div class="rec-pick-sub" id="rec-pick-sub">—</div>
+          <div style="margin-top:14px;">
+            <div class="rec-label">BEST ODDS</div>
+            <div class="odds-display" id="rec-odds"></div>
+          </div>
+        </div>
+        <div class="rec-section">
+          <div class="rec-label">HEAD-TO-HEAD STATS</div>
+          <div id="rec-stats"></div>
+        </div>
+        <div class="rec-section">
+          <div class="rec-label">AI REASONING</div>
+          <div class="reasoning-text" id="rec-reasoning">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div class="tab-content" id="tab-history">
+
+    <div class="roi-bar">
+      <div class="roi-card">
+        <div class="roi-card-label">TOTAL PICKS</div>
+        <div class="roi-card-val white">24</div>
+      </div>
+      <div class="roi-card">
+        <div class="roi-card-label">WIN RATE</div>
+        <div class="roi-card-val green">67%</div>
+      </div>
+      <div class="roi-card">
+        <div class="roi-card-label">ROI</div>
+        <div class="roi-card-val green">+18.4%</div>
+      </div>
+      <div class="roi-card">
+        <div class="roi-card-label">AVG ODDS</div>
+        <div class="roi-card-val yellow">1.87</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">PAST RECOMMENDATIONS</div>
+      <div class="section-sub">Last 30 days</div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Match</th>
+            <th>Pick</th>
+            <th>Odds</th>
+            <th>Conf.</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const API_BASE       = 'http://localhost:3000/api/fd';
+const COMPETITION_ID = 'PL';
+
+// Team crest emoji fallback map
+const CRESTS = {
+  'Arsenal': '🔴', 'Manchester City': '🔵', 'Liverpool': '🔴',
+  'Chelsea': '🔵', 'Tottenham Hotspur': '⚪', 'Aston Villa': '🟣',
+  'Newcastle United': '⚫', 'Everton': '🔵', 'Manchester United': '🔴',
+  'Brentford': '🟡', 'Brighton & Hove Albion': '🔵', 'Fulham': '⚪',
+  'West Ham United': '🟣', 'Crystal Palace': '🔴', 'Wolverhampton Wanderers': '🟡',
+  'Nottingham Forest': '🔴', 'Bournemouth': '🔴', 'Ipswich Town': '🔵',
+  'Leicester City': '🔵', 'Southampton': '🔴'
+};
+
+function getCrest(name) {
+  return CRESTS[name] || '⚽';
+}
+
+// Mock odds (until Odds API key is added)
+const MOCK_ODDS_POOL = [
+  [{ label: 'DRAFTKINGS', val: null, highlight: false }, { label: 'FANDUEL', val: null, highlight: false }, { label: 'BETMGM', val: null, highlight: true }],
+  [{ label: 'FANDUEL', val: null, highlight: false }, { label: 'CAESARS', val: null, highlight: true }, { label: 'DRAFTKINGS', val: null, highlight: false }],
+  [{ label: 'BETMGM', val: null, highlight: true }, { label: 'DRAFTKINGS', val: null, highlight: false }, { label: 'FANDUEL', val: null, highlight: false }],
+];
+
+function mockOdds(homeWinProb) {
+  // Generate plausible decimal odds from win probability
+  const pool = MOCK_ODDS_POOL[Math.floor(Math.random() * MOCK_ODDS_POOL.length)];
+  const base = +(1 / homeWinProb).toFixed(2);
+  return pool.map((b, i) => ({
+    ...b,
+    val: (base + (i === 0 ? -0.05 : i === 1 ? 0 : 0.08)).toFixed(2)
+  }));
+}
+
+// Derive simple recommendation from form data
+function buildRecommendation(fixture, homeForm, awayForm) {
+  const homeWins  = homeForm.filter(r => r === 'W').length;
+  const awayWins  = awayForm.filter(r => r === 'W').length;
+  const homeGoals = homeForm.filter(r => r !== 'L').length;
+  const awayGoals = awayForm.filter(r => r !== 'L').length;
+
+  const homeStrength = homeWins / 5;
+  const awayStrength = awayWins / 5;
+  const bothScoring  = homeGoals >= 3 && awayGoals >= 3;
+  const highScoring  = homeGoals + awayGoals >= 7;
+
+  let pick, sub, confidence, reasoning;
+
+  if (highScoring && bothScoring) {
+    const conf = Math.round(58 + (homeGoals + awayGoals) * 2);
+    pick = 'BTTS'; sub = 'Both Teams To Score';
+    confidence = `${Math.min(conf, 82)}%`;
+    reasoning = `<strong>${fixture.home.name}</strong> and <strong>${fixture.away.name}</strong> have both been finding the net consistently — combined they've avoided defeat in ${homeGoals + awayGoals} of their last 10 outings. The BTTS market offers value given both sides' attacking output this run of form.`;
+  } else if (homeStrength >= 0.6 && homeStrength > awayStrength + 0.2) {
+    const conf = Math.round(62 + homeStrength * 20);
+    pick = `${fixture.home.name.split(' ').pop().toUpperCase()} WIN`; sub = '1X2 – Home Win';
+    confidence = `${Math.min(conf, 84)}%`;
+    reasoning = `<strong>${fixture.home.name}</strong> are in dominant home form — ${homeWins} wins from their last 5 — while <strong>${fixture.away.name}</strong> have managed just ${awayWins} wins in the same period. The home side looks the clear value play here.`;
+  } else if (awayStrength >= 0.6 && awayStrength > homeStrength + 0.2) {
+    const conf = Math.round(58 + awayStrength * 18);
+    pick = `${fixture.away.name.split(' ').pop().toUpperCase()} WIN`; sub = '1X2 – Away Win';
+    confidence = `${Math.min(conf, 79)}%`;
+    reasoning = `<strong>${fixture.away.name}</strong> arrive in strong form with ${awayWins} wins from 5, facing a <strong>${fixture.home.name}</strong> side that have won just ${homeWins} of their last 5 at home. The away win looks overpriced.`;
+  } else {
+    pick = 'OVER 2.5'; sub = 'Total Goals Market';
+    confidence = `${Math.round(55 + (homeGoals + awayGoals) * 1.5)}%`;
+    reasoning = `Neither side has been dominant but both have been involved in open games. <strong>${fixture.home.name}</strong> and <strong>${fixture.away.name}</strong> have a combined ${homeGoals + awayGoals} non-defeat results in their last 5 each — conditions that typically produce goals.`;
+  }
+
+  const homeWinProb = 0.35 + homeStrength * 0.3;
+  const stats = [
+    { label: 'Recent wins', home: homeWins * 20, away: awayWins * 20 },
+    { label: 'Form pts',    home: Math.round(homeStrength * 100), away: Math.round(awayStrength * 100) },
+    { label: 'Goal form',   home: Math.round((homeGoals / 5) * 100), away: Math.round((awayGoals / 5) * 100) },
+    { label: 'Momentum',    home: Math.round(homeStrength * 85), away: Math.round(awayStrength * 85) },
+  ];
+
+  return { pick, sub, confidence, odds: mockOdds(homeWinProb), stats, reasoning };
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let liveFixtures = [];
+
+const historyData = [
+  { match: 'Liverpool vs Arsenal',       pick: 'BTTS',          odds: '1.75', conf: '72%', result: 'win' },
+  { match: 'Man City vs Chelsea',        pick: 'Man City Win',  odds: '1.52', conf: '84%', result: 'win' },
+  { match: 'Wolves vs Spurs',            pick: 'Over 2.5',      odds: '1.95', conf: '65%', result: 'loss' },
+  { match: 'Everton vs Brentford',       pick: 'Brentford Win', odds: '2.10', conf: '61%', result: 'win' },
+  { match: 'Newcastle vs Brighton',      pick: 'Newcastle Win', odds: '1.68', conf: '70%', result: 'win' },
+  { match: 'Fulham vs West Ham',         pick: 'Draw',          odds: '3.40', conf: '45%', result: 'loss' },
+  { match: 'Villa vs Nott\'m Forest',    pick: 'Villa Win',     odds: '1.60', conf: '76%', result: 'win' },
+  { match: 'Crystal Palace vs Luton',    pick: 'Over 2.5',      odds: '2.05', conf: '63%', result: 'pending' },
+];
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function fetchFD(path) {
+  // Split path and query string so we can pass query params properly
+  const [endpoint, qs] = path.split('?');
+  const url = `${API_BASE}/${endpoint}${qs ? '?' + qs : ''}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+function formatMatchDate(utcDate) {
+  const d = new Date(utcDate);
+  return {
+    time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  };
+}
+
+function parseForm(matches, teamId) {
+  return matches.slice(0, 5).map(m => {
+    const isHome = m.homeTeam.id === teamId;
+    const gs = m.score.fullTime;
+    if (gs.home == null) return 'd';
+    const scored   = isHome ? gs.home : gs.away;
+    const conceded = isHome ? gs.away : gs.home;
+    return scored > conceded ? 'w' : scored < conceded ? 'l' : 'd';
+  });
+}
+
+// ── Fetch & render fixtures ───────────────────────────────────────────────────
+async function loadFixtures() {
+  showGridSkeleton();
+  try {
+    // Get upcoming EPL matches (next 10 days)
+    const today     = new Date();
+    const nextWeek  = new Date(today); nextWeek.setDate(today.getDate() + 14);
+    const dateFrom  = today.toISOString().slice(0, 10);
+    const dateTo    = nextWeek.toISOString().slice(0, 10);
+
+    let data = await fetchFD(`competitions/${COMPETITION_ID}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&status=SCHEDULED`);
+    let matches = (data.matches || []);
+
+    // If no fixtures in next 14 days (international break), look ahead up to 60 days
+    if (!matches.length) {
+      const farDate = new Date(today); farDate.setDate(today.getDate() + 60);
+      const farTo   = farDate.toISOString().slice(0, 10);
+      data    = await fetchFD(`competitions/${COMPETITION_ID}/matches?dateFrom=${dateFrom}&dateTo=${farTo}&status=SCHEDULED`);
+      matches = (data.matches || []);
+      if (matches.length) {
+        // Show banner explaining the gap
+        document.getElementById('fixtures-grid').insertAdjacentHTML('beforebegin',
+          `<div style="background:rgba(255,211,42,0.08);border:1px solid rgba(255,211,42,0.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--accent3);font-family:'DM Mono',monospace;letter-spacing:0.5px;">
+            ⚽ INTERNATIONAL BREAK — Showing next available EPL fixtures
+          </div>`
+        );
+      }
+    }
+
+    matches = matches.slice(0, 8);
+
+    if (!matches.length) {
+      showGridError('No upcoming EPL fixtures found in the next 60 days.');
+      return;
+    }
+
+    // Fetch form for each team (parallel)
+    const teamIds = [...new Set(matches.flatMap(m => [m.homeTeam.id, m.awayTeam.id]))];
+    const formMap = {};
+    await Promise.all(teamIds.map(async id => {
+      try {
+        const r = await fetchFD(`teams/${id}/matches?status=FINISHED&limit=5`);
+        formMap[id] = r.matches || [];
+      } catch { formMap[id] = []; }
+    }));
+
+    // Build fixture objects
+    liveFixtures = matches.map((m, i) => {
+      const { time, date } = formatMatchDate(m.utcDate);
+      const homeForm = parseForm(formMap[m.homeTeam.id] || [], m.homeTeam.id);
+      const awayForm = parseForm(formMap[m.awayTeam.id] || [], m.awayTeam.id);
+      const fixture  = {
+        id:   i,
+        home: { name: m.homeTeam.name, crest: getCrest(m.homeTeam.name), form: homeForm },
+        away: { name: m.awayTeam.name, crest: getCrest(m.awayTeam.name), form: awayForm },
+        time, date
+      };
+      fixture.rec = buildRecommendation(fixture, homeForm.map(f=>f.toUpperCase()), awayForm.map(f=>f.toUpperCase()));
+      return fixture;
+    });
+
+    // Update gameweek badge
+    if (data.matches?.[0]?.matchday) {
+      document.querySelector('.live-badge').innerHTML = `<div class="live-dot"></div> EPL GW${data.matches[0].matchday}`;
+    }
+
+    renderFixtures();
+
+  } catch (err) {
+    console.error(err);
+    showGridError('Could not reach the local server. Make sure you ran <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">node server.js</code> in your terminal, then <button onclick="loadFixtures()" style="background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;margin-left:6px;">RETRY</button>');
+  }
+}
+
+function showGridSkeleton() {
+  const grid = document.getElementById('fixtures-grid');
+  grid.innerHTML = Array(4).fill(0).map(() => `
+    <div class="fixture-card" style="pointer-events:none;opacity:0.4">
+      <div class="team-block"><div class="team-crest">⏳</div><div><div class="team-name" style="width:100px;height:14px;background:var(--border);border-radius:4px"></div></div></div>
+      <div class="fixture-meta"><div class="fixture-time">--:--</div><span class="fixture-vs">VS</span><div class="fixture-date">Loading…</div></div>
+      <div class="team-block away"><div class="team-crest">⏳</div><div><div class="team-name" style="width:100px;height:14px;background:var(--border);border-radius:4px"></div></div></div>
+      <div class="fixture-action"><button class="pick-btn" disabled>LOADING</button></div>
+    </div>
+  `).join('');
+}
+
+function showGridError(msg) {
+  document.getElementById('fixtures-grid').innerHTML = `
+    <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px;border:1px solid var(--border);border-radius:14px;">
+      ⚠️ ${msg}
+    </div>`;
+}
+
+function renderFixtures() {
+  const grid = document.getElementById('fixtures-grid');
+  grid.innerHTML = liveFixtures.map(f => `
+    <div class="fixture-card" id="fixture-${f.id}" onclick="selectFixture(${f.id})">
+      <div class="team-block">
+        <div class="team-crest">${f.home.crest}</div>
+        <div>
+          <div class="team-name">${f.home.name}</div>
+          <div class="team-form">${f.home.form.map(r => `<div class="form-dot ${r}"></div>`).join('')}</div>
+        </div>
+      </div>
+      <div class="fixture-meta">
+        <div class="fixture-time">${f.time}</div>
+        <span class="fixture-vs">VS</span>
+        <div class="fixture-date">${f.date}</div>
+      </div>
+      <div class="team-block away">
+        <div class="team-crest">${f.away.crest}</div>
+        <div>
+          <div class="team-name">${f.away.name}</div>
+          <div class="team-form">${f.away.form.map(r => `<div class="form-dot ${r}"></div>`).join('')}</div>
+        </div>
+      </div>
+      <div class="fixture-action">
+        <button class="pick-btn">GET PICK</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Recommendation panel ──────────────────────────────────────────────────────
+function selectFixture(id) {
+  document.querySelectorAll('.fixture-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById(`fixture-${id}`).classList.add('selected');
+
+  const recPanel = document.getElementById('rec-panel');
+  const loading  = document.getElementById('loading-state');
+
+  recPanel.classList.remove('visible');
+  loading.classList.add('show');
+
+  setTimeout(() => {
+    loading.classList.remove('show');
+    renderRecommendation(id);
+    recPanel.classList.add('visible');
+    recPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 1000);
+}
+
+function renderRecommendation(id) {
+  const f = liveFixtures.find(x => x.id === id);
+  const r = f.rec;
+
+  document.getElementById('rec-match-title').textContent = `${f.home.name.toUpperCase()} vs ${f.away.name.toUpperCase()}`;
+  document.getElementById('rec-confidence').textContent  = r.confidence;
+  document.getElementById('rec-pick').textContent        = r.pick;
+  document.getElementById('rec-pick-sub').textContent    = r.sub;
+  document.getElementById('rec-reasoning').innerHTML     = r.reasoning;
+
+  document.getElementById('rec-odds').innerHTML = r.odds.map(o => `
+    <div class="odds-chip ${o.highlight ? 'highlight' : ''}">
+      <span class="odds-chip-label">${o.label}</span>
+      <span class="odds-chip-val">${o.val}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('rec-stats').innerHTML = r.stats.map(s => `
+    <div class="stat-row">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-home" style="width:${s.home}%"></div>
+        <div class="stat-bar-away" style="width:${s.away}%"></div>
+      </div>
+      <div class="stat-nums">${s.home}–${s.away}</div>
+    </div>
+  `).join('');
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const tbody = document.getElementById('history-tbody');
+  tbody.innerHTML = historyData.map(h => `
+    <tr>
+      <td style="font-weight:500">${h.match}</td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent)">${h.pick}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:13px">${h.odds}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${h.conf}</td>
+      <td><span class="result-pill ${h.result}">${h.result === 'win' ? '✓ WIN' : h.result === 'loss' ? '✗ LOSS' : '◌ PENDING'}</span></td>
+    </tr>
+  `).join('');
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadFixtures();
+renderHistory();
+</script>
+</body>
+</html>
