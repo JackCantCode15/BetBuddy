@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BetBuddy — EPL Intelligence</title>
+<title>BetBuddy — EPL & College Football</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -135,6 +135,41 @@
   }
 
   .nav-tab:hover:not(.active) { color: var(--text); }
+
+  /* League switcher */
+  .league-switch {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 3px;
+  }
+
+  .league-btn {
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .league-btn.active { background: var(--accent); color: #000; font-weight: 500; }
+  .league-btn:hover:not(.active) { color: var(--text); }
+
+  .team-crest img { width: 26px; height: 26px; object-fit: contain; }
+
+  .team-rank {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent3);
+    margin-right: 4px;
+  }
 
   /* Main layout */
   main {
@@ -610,6 +645,7 @@
     header { padding: 14px 16px; }
     .logo-text { font-size: 22px; }
     .nav-tabs { display: none; }
+    .live-badge { display: none; }
   }
 </style>
 </head>
@@ -625,7 +661,11 @@
     <button class="nav-tab" onclick="switchTab('history', this)">History</button>
   </div>
   <div class="header-right">
-    <div class="live-badge"><div class="live-dot"></div> EPL GW32</div>
+    <div class="league-switch">
+      <button class="league-btn" data-league="epl" onclick="switchLeague('epl')">⚽ EPL</button>
+      <button class="league-btn" data-league="cfb" onclick="switchLeague('cfb')">🏈 NCAAF</button>
+    </div>
+    <div class="live-badge"><div class="live-dot"></div> <span id="live-badge-text">EPL</span></div>
   </div>
 </header>
 
@@ -636,9 +676,10 @@
 
     <div class="section-header">
       <div class="section-title">UPCOMING FIXTURES</div>
-      <div class="section-sub">Gameweek 32 · Tap a match to generate AI recommendation</div>
+      <div class="section-sub" id="fixtures-sub">Tap a match to generate AI recommendation</div>
     </div>
 
+    <div id="fixtures-banner"></div>
     <div class="fixtures-grid" id="fixtures-grid"></div>
 
     <!-- Loading -->
@@ -731,7 +772,17 @@
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
 const API_BASE       = 'http://localhost:3000/api/fd';
+const ESPN_BASE      = 'http://localhost:3000/api/espn';
 const COMPETITION_ID = 'PL';
+
+const LEAGUES = {
+  epl: { icon: '⚽', badge: 'EPL', sub: 'Premier League · Tap a match to generate AI recommendation' },
+  cfb: { icon: '🏈', badge: 'NCAAF', sub: 'College Football · Top 25 games · Tap a game to generate AI recommendation' },
+};
+
+let currentLeague = 'epl';
+try { if (LEAGUES[localStorage.getItem('bb-league')]) currentLeague = localStorage.getItem('bb-league'); } catch {}
+let loadToken = 0; // ignore results from a league the user has since switched away from
 
 // Team crest emoji fallback map
 const CRESTS = {
@@ -811,6 +862,176 @@ function buildRecommendation(fixture, homeForm, awayForm) {
   return { pick, sub, confidence, odds: mockOdds(homeWinProb), stats, reasoning };
 }
 
+// ── College football (ESPN) ───────────────────────────────────────────────────
+// American odds → implied win probability
+function impliedProb(american) {
+  const n = parseFloat(american);
+  if (isNaN(n)) return null;
+  return n < 0 ? -n / (-n + 100) : 100 / (n + 100);
+}
+
+// Last 5 completed games for a team: form letters + avg points for/against
+function parseCfbForm(events, teamId) {
+  const done = events
+    .filter(e => e.competitions?.[0]?.status?.type?.completed)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5);
+  const score = c => +(typeof c.score === 'object' ? c.score?.value : c.score) || 0;
+  let pf = 0, pa = 0;
+  const form = done.map(e => {
+    const comps = e.competitions[0].competitors;
+    const me  = comps.find(c => c.team?.id === teamId) || comps[0];
+    const opp = comps.find(c => c !== me);
+    pf += score(me); pa += opp ? score(opp) : 0;
+    return me.winner ? 'w' : 'l';
+  });
+  const n = done.length || 1;
+  return { form, ppg: pf / n, papg: pa / n };
+}
+
+function buildCfbRecommendation(fixture, odds) {
+  const h = fixture.home, a = fixture.away;
+  const hWins = h.form.filter(r => r === 'w').length;
+  const aWins = a.form.filter(r => r === 'w').length;
+  const nick  = t => t.short.toUpperCase();
+
+  const spread  = odds?.spread;            // home spread, e.g. -10
+  const total   = odds?.overUnder;
+  const homeML  = odds?.moneyline?.home?.close?.odds;
+  const awayML  = odds?.moneyline?.away?.close?.odds;
+  const hSpread = odds?.pointSpread?.home?.close;
+  const aSpread = odds?.pointSpread?.away?.close;
+  const over    = odds?.total?.over?.close;
+  const under   = odds?.total?.under?.close;
+
+  const projTotal  = (h.ppg + a.papg) / 2 + (a.ppg + h.papg) / 2;
+  const projMargin = ((h.ppg - h.papg) - (a.ppg - a.papg)) / 2 + 2.5; // +2.5 home field
+  const formEdge   = hWins - aWins;
+
+  let pick, sub, conf, reasoning, market;
+
+  if (total != null && Math.abs(projTotal - total) >= 6) {
+    const isOver = projTotal > total;
+    market = 'total';
+    pick = `${isOver ? 'OVER' : 'UNDER'} ${total}`;
+    sub  = 'Total Points';
+    conf = 56 + Math.min(Math.abs(projTotal - total), 14);
+    reasoning = `<strong>${h.name}</strong> average ${h.ppg.toFixed(1)} pts and allow ${h.papg.toFixed(1)} over their last ${h.form.length}; <strong>${a.name}</strong> average ${a.ppg.toFixed(1)} and allow ${a.papg.toFixed(1)}. That projects to roughly <strong>${projTotal.toFixed(0)} points</strong> against a posted total of ${total} — the ${isOver ? 'over' : 'under'} has the edge.`;
+  } else if (spread != null) {
+    // Positive cover margin = home covers
+    const coverEdge = projMargin + spread;
+    const homeSide  = coverEdge >= 0;
+    const t    = homeSide ? h : a;
+    const line = homeSide ? (hSpread?.line ?? spread) : (aSpread?.line ?? -spread);
+    market = 'spread';
+    pick = `${nick(t)} ${line}`;
+    sub  = 'Point Spread';
+    conf = 54 + Math.min(Math.abs(coverEdge) * 1.5, 14) + Math.min(Math.abs(formEdge) * 2, 8);
+    reasoning = `Recent scoring margins project <strong>${h.name}</strong> by about ${projMargin.toFixed(1)} (incl. home field) against a line of ${h.short} ${spread > 0 ? '+' : ''}${spread}. <strong>${t.name}</strong> ${homeSide ? hWins : aWins}-${t.form.length - (homeSide ? hWins : aWins)} in their last ${t.form.length}${t.record ? `, ${t.record} overall` : ''} — the value sits with them against the number.`;
+  } else {
+    const homeSide = projMargin >= 0;
+    const t = homeSide ? h : a;
+    market = 'ml';
+    pick = `${nick(t)} ML`;
+    sub  = 'Moneyline';
+    conf = 55 + Math.min(Math.abs(projMargin), 20);
+    reasoning = `No line posted yet. On recent form <strong>${t.name}</strong> project as the stronger side by about ${Math.abs(projMargin).toFixed(1)} points.`;
+  }
+
+  const oddsChips = [];
+  if (hSpread || aSpread) oddsChips.push({ label: `DK SPREAD`, val: market === 'spread' ? pick :`${h.short} ${hSpread?.line ?? ''}`, highlight: market === 'spread' });
+  if (over) oddsChips.push({ label: 'DK TOTAL', val: `${total} (${market === 'total' && pick.startsWith('UNDER') ? under?.odds : over?.odds})`, highlight: market === 'total' });
+  if (homeML || awayML) oddsChips.push({ label: 'DK MONEYLINE', val: `${h.short} ${homeML ?? '—'} · ${a.short} ${awayML ?? '—'}`, highlight: market === 'ml' });
+  if (!oddsChips.length) oddsChips.push({ label: 'ODDS', val: 'Not posted', highlight: false });
+
+  // Bars show each side's share of the combined value
+  const share = (x, y) => { const s = x + y; const p = s ? Math.round((x / s) * 100) : 50; return [p, 100 - p]; };
+  const pApg = (x) => Math.max(0, 60 - x); // fewer pts allowed = bigger bar
+  const winProb = impliedProb(homeML);
+  const stats = [
+    { label: 'Last 5 wins', vals: share(hWins, aWins),         disp: `${hWins}–${aWins}` },
+    { label: 'Pts / game',  vals: share(h.ppg, a.ppg),         disp: `${h.ppg.toFixed(0)}–${a.ppg.toFixed(0)}` },
+    { label: 'Defense',     vals: share(pApg(h.papg), pApg(a.papg)), disp: `${h.papg.toFixed(0)}–${a.papg.toFixed(0)}` },
+  ];
+  if (winProb != null) {
+    const hp = Math.round(winProb * 100);
+    stats.push({ label: 'Implied win', vals: [hp, 100 - hp], disp: `${hp}–${100 - hp}%` });
+  }
+
+  return {
+    pick, sub,
+    confidence: `${Math.round(Math.min(conf, 80))}%`,
+    odds: oddsChips,
+    stats: stats.map(s => ({ label: s.label, home: s.vals[0], away: s.vals[1], disp: s.disp })),
+    reasoning
+  };
+}
+
+async function fetchESPN(path) {
+  const res = await fetch(`${ESPN_BASE}/football/college-football/${path}`, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+async function loadCFB(token) {
+  let data   = await fetchESPN('scoreboard');
+  let events = (data.events || []).filter(e => e.status?.type?.state === 'pre');
+
+  // Current week finished? Try the next one.
+  if (!events.length && data.week?.number) {
+    data   = await fetchESPN(`scoreboard?week=${data.week.number + 1}&seasontype=${data.season?.type ?? 2}`);
+    events = (data.events || []).filter(e => e.status?.type?.state === 'pre');
+  }
+  if (token !== loadToken) return;
+
+  if (!events.length) {
+    showGridError('No upcoming college football games found — the season may be over.');
+    return;
+  }
+
+  // Ranked matchups first
+  const rank = c => c.curatedRank?.current ?? 99;
+  const bestRank = e => Math.min(...e.competitions[0].competitors.map(rank));
+  events = events.sort((x, y) => bestRank(x) - bestRank(y) || new Date(x.date) - new Date(y.date)).slice(0, 10);
+
+  const teamIds = [...new Set(events.flatMap(e => e.competitions[0].competitors.map(c => c.team.id)))];
+  const formMap = {};
+  await Promise.all(teamIds.map(async id => {
+    try {
+      const r = await fetchESPN(`teams/${id}/schedule`);
+      formMap[id] = parseCfbForm(r.events || [], id);
+    } catch { formMap[id] = { form: [], ppg: 0, papg: 0 }; }
+  }));
+  if (token !== loadToken) return;
+
+  liveFixtures = events.map((e, i) => {
+    const comp = e.competitions[0];
+    const { time, date } = formatMatchDate(e.date);
+    const side = which => {
+      const c = comp.competitors.find(x => x.homeAway === which);
+      const f = formMap[c.team.id] || { form: [], ppg: 0, papg: 0 };
+      const r = rank(c);
+      return {
+        name:   c.team.displayName,
+        short:  c.team.abbreviation || c.team.shortDisplayName,
+        crest:  c.team.logo ? `<img src="${c.team.logo}" alt="" loading="lazy">` : '🏈',
+        rank:   r < 99 ? r : null,
+        record: c.records?.[0]?.summary,
+        ...f
+      };
+    };
+    const fixture = { id: i, home: side('home'), away: side('away'), time, date };
+    fixture.rec = buildCfbRecommendation(fixture, comp.odds?.[0]);
+    return fixture;
+  });
+
+  if (data.week?.number) setBadge(`NCAAF WK${data.week.number}`);
+  renderFixtures();
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let liveFixtures = [];
 
@@ -858,9 +1079,41 @@ function parseForm(matches, teamId) {
 }
 
 // ── Fetch & render fixtures ───────────────────────────────────────────────────
+function setBadge(text) {
+  document.getElementById('live-badge-text').textContent = text;
+}
+
 async function loadFixtures() {
+  const token = ++loadToken;
+  const L = LEAGUES[currentLeague];
+  liveFixtures = [];
+  document.getElementById('fixtures-banner').innerHTML = '';
+  document.getElementById('fixtures-sub').textContent = L.sub;
+  document.querySelector('.logo-icon').textContent = L.icon;
+  document.getElementById('rec-panel').classList.remove('visible');
+  document.getElementById('loading-state').classList.remove('show');
+  setBadge(L.badge);
   showGridSkeleton();
   try {
+    if (currentLeague === 'cfb') await loadCFB(token);
+    else await loadEPL(token);
+  } catch (err) {
+    if (token !== loadToken) return;
+    console.error(err);
+    showGridError('Could not reach the local server. Make sure you ran <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">node server.js</code> in your terminal, then <button onclick="loadFixtures()" style="background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;margin-left:6px;">RETRY</button>');
+  }
+}
+
+function switchLeague(league) {
+  if (!LEAGUES[league]) return;
+  currentLeague = league;
+  try { localStorage.setItem('bb-league', league); } catch {}
+  document.querySelectorAll('.league-btn').forEach(b => b.classList.toggle('active', b.dataset.league === league));
+  loadFixtures();
+}
+
+async function loadEPL(token) {
+  {
     // Get upcoming EPL matches (next 10 days)
     const today     = new Date();
     const nextWeek  = new Date(today); nextWeek.setDate(today.getDate() + 14);
@@ -876,9 +1129,10 @@ async function loadFixtures() {
       const farTo   = farDate.toISOString().slice(0, 10);
       data    = await fetchFD(`competitions/${COMPETITION_ID}/matches?dateFrom=${dateFrom}&dateTo=${farTo}&status=SCHEDULED`);
       matches = (data.matches || []);
+      if (token !== loadToken) return;
       if (matches.length) {
         // Show banner explaining the gap
-        document.getElementById('fixtures-grid').insertAdjacentHTML('beforebegin',
+        document.getElementById('fixtures-banner').innerHTML = (
           `<div style="background:rgba(255,211,42,0.08);border:1px solid rgba(255,211,42,0.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--accent3);font-family:'DM Mono',monospace;letter-spacing:0.5px;">
             ⚽ INTERNATIONAL BREAK — Showing next available EPL fixtures
           </div>`
@@ -887,6 +1141,7 @@ async function loadFixtures() {
     }
 
     matches = matches.slice(0, 8);
+    if (token !== loadToken) return;
 
     if (!matches.length) {
       showGridError('No upcoming EPL fixtures found in the next 60 days.');
@@ -902,6 +1157,7 @@ async function loadFixtures() {
         formMap[id] = r.matches || [];
       } catch { formMap[id] = []; }
     }));
+    if (token !== loadToken) return;
 
     // Build fixture objects
     liveFixtures = matches.map((m, i) => {
@@ -920,14 +1176,10 @@ async function loadFixtures() {
 
     // Update gameweek badge
     if (data.matches?.[0]?.matchday) {
-      document.querySelector('.live-badge').innerHTML = `<div class="live-dot"></div> EPL GW${data.matches[0].matchday}`;
+      setBadge(`EPL GW${data.matches[0].matchday}`);
     }
 
     renderFixtures();
-
-  } catch (err) {
-    console.error(err);
-    showGridError('Could not reach the local server. Make sure you ran <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">node server.js</code> in your terminal, then <button onclick="loadFixtures()" style="background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;margin-left:6px;">RETRY</button>');
   }
 }
 
@@ -957,7 +1209,7 @@ function renderFixtures() {
       <div class="team-block">
         <div class="team-crest">${f.home.crest}</div>
         <div>
-          <div class="team-name">${f.home.name}</div>
+          <div class="team-name">${f.home.rank ? `<span class="team-rank">#${f.home.rank}</span>` : ''}${f.home.name}</div>
           <div class="team-form">${f.home.form.map(r => `<div class="form-dot ${r}"></div>`).join('')}</div>
         </div>
       </div>
@@ -969,7 +1221,7 @@ function renderFixtures() {
       <div class="team-block away">
         <div class="team-crest">${f.away.crest}</div>
         <div>
-          <div class="team-name">${f.away.name}</div>
+          <div class="team-name">${f.away.rank ? `<span class="team-rank">#${f.away.rank}</span>` : ''}${f.away.name}</div>
           <div class="team-form">${f.away.form.map(r => `<div class="form-dot ${r}"></div>`).join('')}</div>
         </div>
       </div>
@@ -1023,7 +1275,7 @@ function renderRecommendation(id) {
         <div class="stat-bar-home" style="width:${s.home}%"></div>
         <div class="stat-bar-away" style="width:${s.away}%"></div>
       </div>
-      <div class="stat-nums">${s.home}–${s.away}</div>
+      <div class="stat-nums">${s.disp ?? `${s.home}–${s.away}`}</div>
     </div>
   `).join('');
 }
@@ -1050,7 +1302,7 @@ function switchTab(tab, btn) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-loadFixtures();
+switchLeague(currentLeague);
 renderHistory();
 </script>
 </body>
