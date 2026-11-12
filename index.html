@@ -771,8 +771,9 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const API_BASE       = 'http://localhost:3000/api/fd';
-const ESPN_BASE      = 'http://localhost:3000/api/espn';
+// Same-origin paths: works on localhost and on the deployed site
+const API_BASE       = '/api/fd';
+const ESPN_BASE      = '/api/espn';
 const COMPETITION_ID = 'PL';
 
 const LEAGUES = {
@@ -1100,7 +1101,7 @@ async function loadFixtures() {
   } catch (err) {
     if (token !== loadToken) return;
     console.error(err);
-    showGridError('Could not reach the local server. Make sure you ran <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">node server.js</code> in your terminal, then <button onclick="loadFixtures()" style="background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;margin-left:6px;">RETRY</button>');
+    showGridError('Could not load fixtures right now. <button onclick="loadFixtures()" style="background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;margin-left:6px;">RETRY</button>');
   }
 }
 

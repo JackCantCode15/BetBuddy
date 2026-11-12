@@ -1,24 +1,31 @@
-// BetBuddy — Local API Server
-// Run: node server.js
-// Requires: npm install express node-fetch cors
+// BetBuddy — API Server
+// Run locally: put FOOTBALL_API_KEY=... in a .env file, then `npm start`
+// In production (e.g. Render): set FOOTBALL_API_KEY in the host's environment settings
 
 const express  = require('express');
 const fetch    = (...a) => import('node-fetch').then(({default: f}) => f(...a));
 const cors     = require('cors');
 const path     = require('path');
 
-const app  = express();
-const PORT = 3000;
+// Load .env for local development (ignored if the file doesn't exist)
+try { process.loadEnvFile(); } catch {}
 
-const FOOTBALL_API_KEY = '8e6b7ca6bf4f47ee979d42a84dd72adf';
+const app  = express();
+const PORT = process.env.PORT || 3000;   // hosts like Render assign the port
+
+const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
+if (!FOOTBALL_API_KEY) {
+  console.warn('⚠️  FOOTBALL_API_KEY is not set — EPL fixtures will fail. Add it to .env or your host settings.');
+}
 const FD_BASE          = 'https://api.football-data.org/v4';
 
 // Allow requests from the local HTML file
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Serve the frontend
-app.use(express.static(path.join(__dirname)));
+// Serve the frontend (only the page — not server.js, .env or other project files)
+const sendPage = (_, res) => res.sendFile(path.join(__dirname, 'index.html'));
+app.get(['/', '/index.html'], sendPage);
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 // football-data's free plan allows 10 requests/minute and one EPL page load needs
@@ -91,6 +98,6 @@ app.get('/api/ping', (_, res) => res.json({ ok: true, time: new Date().toISOStri
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n✅ BetBuddy server running at http://localhost:${PORT}`);
-  console.log(`   Open http://localhost:${PORT}/index.html in your browser\n`);
+  console.log(`\n✅ BetBuddy server running on port ${PORT}`);
+  console.log(`   Locally: open http://localhost:${PORT} in your browser\n`);
 });
